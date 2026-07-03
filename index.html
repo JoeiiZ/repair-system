@@ -823,7 +823,7 @@ select.status-select {
 // ══════════════════════════════════════════════════════════════════
 //  CONFIG — ใส่ URL ของ Google Apps Script ที่ Deploy แล้วตรงนี้
 // ══════════════════════════════════════════════════════════════════
-const GAS_URL = 'YOUR_GOOGLE_APPS_SCRIPT_URL_HERE';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbxmc9f1czc5Nc2vhiXTX6BoQQl9CsiQUHA2AXDXEF-10lLjQJMjz4oTJpXb9zHSknPEbg/exec';
 //  ตัวอย่าง: 'https://script.google.com/macros/s/AKfycb.../exec'
 
 // ══════════════════════════════════════════════════════════════════
@@ -931,7 +931,7 @@ const PRIORITY_MAP = { normal:'ปกติ (3-5 วัน)', urgent:'⚡ เร
 // ══════════════════════════════════════════════════════════════════
 
 async function loadData() {
-  if (!GAS_URL || GAS_URL === 'YOUR_GOOGLE_APPS_SCRIPT_URL_HERE') {
+  if (!GAS_URL) {
     console.warn('GAS_URL ยังไม่ได้ตั้งค่า');
     return [];
   }
@@ -946,7 +946,7 @@ async function loadData() {
 }
 
 async function saveData(claim) {
-  if (!GAS_URL || GAS_URL === 'YOUR_GOOGLE_APPS_SCRIPT_URL_HERE') return;
+  if (!GAS_URL) return;
   try {
     await fetch(GAS_URL, {
       method: 'POST',
@@ -956,7 +956,7 @@ async function saveData(claim) {
 }
 
 async function updateData(ticketId, updates) {
-  if (!GAS_URL || GAS_URL === 'YOUR_GOOGLE_APPS_SCRIPT_URL_HERE') return false;
+  if (!GAS_URL) return false;
   try {
     const res = await fetch(GAS_URL, {
       method: 'POST',
@@ -971,7 +971,7 @@ async function updateData(ticketId, updates) {
 }
 
 async function getOneData(id, phone) {
-  if (!GAS_URL || GAS_URL === 'YOUR_GOOGLE_APPS_SCRIPT_URL_HERE') return null;
+  if (!GAS_URL) return null;
   try {
     let url = `${GAS_URL}?action=getOne`;
     if (id)    url += `&id=${encodeURIComponent(id)}`;
