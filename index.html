@@ -820,7 +820,15 @@ select.status-select {
 </div>
 
 <script>
-// ── EMAILJS CONFIG ────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════
+//  CONFIG — ใส่ URL ของ Google Apps Script ที่ Deploy แล้วตรงนี้
+// ══════════════════════════════════════════════════════════════════
+const GAS_URL = 'YOUR_GOOGLE_APPS_SCRIPT_URL_HERE';
+//  ตัวอย่าง: 'https://script.google.com/macros/s/AKfycb.../exec'
+
+// ══════════════════════════════════════════════════════════════════
+//  EMAILJS CONFIG (เก็บใน localStorage เหมือนเดิม — ไม่เปลี่ยน)
+// ══════════════════════════════════════════════════════════════════
 const EJS_KEY = 'emailjs_config_v1';
 
 function loadEjsConfig() {
@@ -918,35 +926,65 @@ async function sendEmail(templateId, params) {
 }
 const PRIORITY_MAP = { normal:'ปกติ (3-5 วัน)', urgent:'⚡ เร่งด่วน (1-2 วัน)', express:'🚀 Express (ภายในวัน)' };
 
-// ── DATA STORE (localStorage) ─────────────────────────────────────────────
-const STORE_KEY = 'repair_claims_v1';
+// ══════════════════════════════════════════════════════════════════
+//  DATA STORE — Google Sheets (แทน localStorage)
+// ══════════════════════════════════════════════════════════════════
 
-function loadData() {
+async function loadData() {
+  if (!GAS_URL || GAS_URL === 'YOUR_GOOGLE_APPS_SCRIPT_URL_HERE') {
+    console.warn('GAS_URL ยังไม่ได้ตั้งค่า');
+    return [];
+  }
   try {
-    return JSON.parse(localStorage.getItem(STORE_KEY)) || [];
-  } catch(e) { return []; }
+    const res = await fetch(`${GAS_URL}?action=getAll`);
+    const json = await res.json();
+    return json.ok ? json.data : [];
+  } catch(e) {
+    console.error('loadData error:', e);
+    return [];
+  }
 }
 
-function saveData(data) {
-  localStorage.setItem(STORE_KEY, JSON.stringify(data));
+async function saveData(claim) {
+  if (!GAS_URL || GAS_URL === 'YOUR_GOOGLE_APPS_SCRIPT_URL_HERE') return;
+  try {
+    await fetch(GAS_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'save', claim }),
+    });
+  } catch(e) { console.error('saveData error:', e); }
 }
 
-function getData() { return loadData(); }
-
-// ── SEED DEMO DATA ────────────────────────────────────────────────────────
-function seedDemo() {
-  if (loadData().length > 0) return;
-  const demo = [
-    { id:'TK-000001', date:'2024-12-01', name:'สมชาย ใจดี', phone:'081-234-5678', email:'somchai@email.com', line:'@somchai', type:'โน๊ตบุ๊ค', brand:'Dell Inspiron 15', serial:'DL2024001', issue:'เปิดไม่ติด จอดำ', priority:'normal', pickup:'รับเองที่ร้าน', note:'', status:'done', price:'1200', techNote:'เปลี่ยน RAM ใหม่ 8GB', returnDate:'2024-12-05', history:['new','check','fix','done'] },
-    { id:'TK-000002', date:'2024-12-03', name:'มานี รักดี', phone:'089-876-5432', email:'manee@email.com', line:'', type:'สมาร์ทโฟน', brand:'Samsung S23', serial:'SM2024002', issue:'จอแตก ทัชไม่ติด', priority:'urgent', pickup:'ส่งคืนทาง Delivery', note:'เร่งมาก', status:'fix', price:'2500', techNote:'สั่งจอใหม่แล้ว', returnDate:'', history:['new','check','wait','fix'] },
-    { id:'TK-000003', date:'2024-12-04', name:'วิชัย สุขสม', phone:'062-111-2233', email:'wichai@email.com', line:'@wichai99', type:'คอมพิวเตอร์ตั้งโต๊ะ', brand:'Custom PC', serial:'', issue:'เครื่องช้ามาก เปิดนาน', priority:'normal', pickup:'รับเองที่ร้าน', note:'', status:'check', price:'', techNote:'', returnDate:'', history:['new','check'] },
-    { id:'TK-000004', date:'2024-12-05', name:'นภา ฟ้าใส', phone:'095-444-5566', email:'napa@email.com', line:'', type:'iPad / iPhone', brand:'iPad 7', serial:'IP2024004', issue:'Error 4013 Restore ไม่ผ่าน', priority:'express', pickup:'รับเองที่ร้าน', note:'', status:'wait', price:'', techNote:'รอตรวจ NAND Flash', returnDate:'', history:['new','check','wait'] },
-    { id:'TK-000005', date:'2024-12-06', name:'ประเสริฐ ทองดี', phone:'083-777-8899', email:'prasert@email.com', line:'@prasert', type:'โน๊ตบุ๊ค', brand:'ASUS Vivobook 14', serial:'AS2024005', issue:'แบตไม่ชาร์จ', priority:'normal', pickup:'รับเองที่ร้าน', note:'', status:'new', price:'', techNote:'', returnDate:'', history:['new'] },
-  ];
-  saveData(demo);
+async function updateData(ticketId, updates) {
+  if (!GAS_URL || GAS_URL === 'YOUR_GOOGLE_APPS_SCRIPT_URL_HERE') return false;
+  try {
+    const res = await fetch(GAS_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'update', ticketId, updates }),
+    });
+    const json = await res.json();
+    return json.ok;
+  } catch(e) {
+    console.error('updateData error:', e);
+    return false;
+  }
 }
 
-// ── STATUS CONFIG ─────────────────────────────────────────────────────────
+async function getOneData(id, phone) {
+  if (!GAS_URL || GAS_URL === 'YOUR_GOOGLE_APPS_SCRIPT_URL_HERE') return null;
+  try {
+    let url = `${GAS_URL}?action=getOne`;
+    if (id)    url += `&id=${encodeURIComponent(id)}`;
+    if (phone) url += `&phone=${encodeURIComponent(phone)}`;
+    const res = await fetch(url);
+    const json = await res.json();
+    return json.ok ? json.data : null;
+  } catch(e) { return null; }
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  STATUS CONFIG
+// ══════════════════════════════════════════════════════════════════
 const STATUS = {
   new:    { label:'รับแล้ว — รอตรวจ',       cls:'badge-new',    icon:'🔵', tl:'📥', tlLabel:'รับอุปกรณ์แล้ว' },
   check:  { label:'กำลังตรวจสอบ',           cls:'badge-check',  icon:'🟡', tl:'🔍', tlLabel:'กำลังตรวจสอบอาการ' },
@@ -961,7 +999,9 @@ function badgeHTML(status) {
   return `<span class="badge ${s.cls}"><span class="badge-dot"></span>${s.label}</span>`;
 }
 
-// ── NAVIGATION ────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════
+//  NAVIGATION
+// ══════════════════════════════════════════════════════════════════
 function showPage(page) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
@@ -971,14 +1011,18 @@ function showPage(page) {
   if (page === 'admin') renderAdmin();
 }
 
-// ── TICKET GENERATION ─────────────────────────────────────────────────────
-function genTicket() {
-  const data = getData();
+// ══════════════════════════════════════════════════════════════════
+//  TICKET GENERATION
+// ══════════════════════════════════════════════════════════════════
+async function genTicket() {
+  const data = await loadData();
   const num = (data.length + 1).toString().padStart(6, '0');
   return `TK-${num}`;
 }
 
-// ── FILE PREVIEW ──────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════
+//  FILE PREVIEW
+// ══════════════════════════════════════════════════════════════════
 function previewFiles(input) {
   const preview = document.getElementById('file-preview');
   preview.innerHTML = '';
@@ -990,10 +1034,17 @@ function previewFiles(input) {
   });
 }
 
-// ── SUBMIT CLAIM ──────────────────────────────────────────────────────────
-document.getElementById('claim-form').addEventListener('submit', function(e) {
+// ══════════════════════════════════════════════════════════════════
+//  SUBMIT CLAIM
+// ══════════════════════════════════════════════════════════════════
+document.getElementById('claim-form').addEventListener('submit', async function(e) {
   e.preventDefault();
-  const ticket = genTicket();
+
+  const submitBtn = this.querySelector('button[type="submit"]');
+  submitBtn.disabled = true;
+  submitBtn.textContent = '⏳ กำลังบันทึก...';
+
+  const ticket = await genTicket();
   const now = new Date();
   const dateStr = now.toLocaleDateString('th-TH', { year:'numeric', month:'long', day:'numeric' });
 
@@ -1019,9 +1070,7 @@ document.getElementById('claim-form').addEventListener('submit', function(e) {
     history: ['new'],
   };
 
-  const data = getData();
-  data.push(claim);
-  saveData(data);
+  await saveData(claim);
 
   document.getElementById('ticket-number').textContent = ticket;
   document.getElementById('ticket-email').textContent = claim.email;
@@ -1029,7 +1078,10 @@ document.getElementById('claim-form').addEventListener('submit', function(e) {
   document.getElementById('ticket-result').scrollIntoView({ behavior:'smooth' });
   showToast(`✅ ส่งเคลมสำเร็จ! เลข Ticket: ${ticket}`);
 
-  // ── ส่ง Email ยืนยันให้ลูกค้า ──
+  submitBtn.disabled = false;
+  submitBtn.textContent = '✅ ส่งแจ้งเคลม';
+
+  // ส่ง Email ยืนยันให้ลูกค้า
   const cfg = loadEjsConfig();
   sendEmail(cfg.templateClaim, {
     to_email:    claim.email,
@@ -1053,13 +1105,24 @@ function resetForm() {
   document.getElementById('ticket-result').classList.remove('show');
 }
 
-// ── CHECK STATUS ──────────────────────────────────────────────────────────
-function checkStatus() {
+// ══════════════════════════════════════════════════════════════════
+//  CHECK STATUS
+// ══════════════════════════════════════════════════════════════════
+async function checkStatus() {
   const input = document.getElementById('check-input').value.trim().toUpperCase();
   if (!input) { showToast('⚠️ กรุณากรอกเลข Ticket'); return; }
 
-  const data = getData();
-  const claim = data.find(c => c.id.toUpperCase() === input || c.phone === input);
+  const btn = document.querySelector('#page-check .btn-primary');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ กำลังค้นหา...'; }
+
+  // ตรวจว่าเป็น Ticket ID หรือเบอร์โทร
+  const isTicket = input.startsWith('TK-');
+  const claim = await getOneData(
+    isTicket ? input : null,
+    isTicket ? null : document.getElementById('check-input').value.trim()
+  );
+
+  if (btn) { btn.disabled = false; btn.textContent = 'ค้นหา'; }
 
   if (!claim) {
     showToast('❌ ไม่พบข้อมูล Ticket นี้');
@@ -1067,7 +1130,6 @@ function checkStatus() {
     return;
   }
 
-  // Fill info
   document.getElementById('sr-ticket').textContent = claim.id;
   document.getElementById('sr-badge').innerHTML = badgeHTML(claim.status);
   document.getElementById('sr-name').textContent = claim.name;
@@ -1078,10 +1140,14 @@ function checkStatus() {
   if (claim.price) {
     document.getElementById('sr-price').textContent = `฿${Number(claim.price).toLocaleString()}`;
     document.getElementById('sr-price-row').style.display = 'flex';
+  } else {
+    document.getElementById('sr-price-row').style.display = 'none';
   }
   if (claim.techNote) {
     document.getElementById('sr-note').textContent = claim.techNote;
     document.getElementById('sr-note-row').style.display = 'flex';
+  } else {
+    document.getElementById('sr-note-row').style.display = 'none';
   }
 
   // Timeline
@@ -1089,8 +1155,7 @@ function checkStatus() {
   const historySet = new Set(claim.history || [claim.status]);
   const tl = document.getElementById('sr-timeline');
   tl.innerHTML = '';
-
-  allSteps.forEach((step, i) => {
+  allSteps.forEach(step => {
     const s = STATUS[step];
     const isDone = historySet.has(step);
     const isCurrent = claim.status === step;
@@ -1122,19 +1187,30 @@ function checkStatus() {
   document.getElementById('status-result').scrollIntoView({ behavior:'smooth' });
 }
 
-// ── ADMIN ─────────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════
+//  ADMIN
+// ══════════════════════════════════════════════════════════════════
 let currentFilter = 'all';
+let adminCache = [];
 
 function setFilter(f) {
   currentFilter = f;
   document.querySelectorAll('.filter-tab').forEach(t => {
     t.classList.toggle('active', t.dataset.filter === f);
   });
-  renderAdmin();
+  renderTable(adminCache);
 }
 
-function renderAdmin() {
-  const data = getData();
+async function renderAdmin() {
+  const tbody = document.getElementById('admin-tbody');
+  tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:32px">⏳ กำลังโหลดข้อมูล...</td></tr>`;
+
+  const data = await loadData();
+  adminCache = data;
+  renderTable(data);
+}
+
+function renderTable(data) {
   const search = document.getElementById('admin-search').value.toLowerCase();
 
   // Stats
@@ -1149,14 +1225,13 @@ function renderAdmin() {
     <div class="stat-card stat-purple"><div class="stat-num">${stats.pickup}</div><div class="stat-label">รับกลับแล้ว</div></div>
   `;
 
-  // Filter
   let filtered = data.filter(c => {
     const matchFilter = currentFilter === 'all' || c.status === currentFilter;
     const matchSearch = !search ||
-      c.name.toLowerCase().includes(search) ||
-      c.id.toLowerCase().includes(search) ||
-      c.brand.toLowerCase().includes(search) ||
-      c.phone.includes(search);
+      (c.name||'').toLowerCase().includes(search) ||
+      (c.id||'').toLowerCase().includes(search) ||
+      (c.brand||'').toLowerCase().includes(search) ||
+      (c.phone||'').includes(search);
     return matchFilter && matchSearch;
   });
 
@@ -1166,7 +1241,7 @@ function renderAdmin() {
     return;
   }
 
-  tbody.innerHTML = filtered.reverse().map(c => `
+  tbody.innerHTML = [...filtered].reverse().map(c => `
     <tr>
       <td><span class="ticket-id">${c.id}</span></td>
       <td style="color:var(--text3);font-size:12px">${c.date}</td>
@@ -1178,7 +1253,7 @@ function renderAdmin() {
         <div class="device-name">${c.brand}</div>
         <div style="font-size:12px;color:var(--text3)">${c.type}</div>
       </td>
-      <td style="max-width:160px;font-size:13px;color:var(--text2)">${c.issue.substring(0,50)}${c.issue.length>50?'...':''}</td>
+      <td style="max-width:160px;font-size:13px;color:var(--text2)">${(c.issue||'').substring(0,50)}${(c.issue||'').length>50?'...':''}</td>
       <td>${badgeHTML(c.status)}</td>
       <td style="font-family:var(--mono);font-size:13px;color:var(--green)">${c.price?'฿'+Number(c.price).toLocaleString():'-'}</td>
       <td>
@@ -1188,12 +1263,13 @@ function renderAdmin() {
   `).join('');
 }
 
-// ── MODAL ─────────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════
+//  MODAL
+// ══════════════════════════════════════════════════════════════════
 let currentEditId = null;
 
 function openModal(id) {
-  const data = getData();
-  const claim = data.find(c => c.id === id);
+  const claim = adminCache.find(c => c.id === id);
   if (!claim) return;
   currentEditId = id;
 
@@ -1230,25 +1306,39 @@ function updateStatusColor() {
   `;
 }
 
-function saveUpdate() {
-  const data = getData();
-  const idx = data.findIndex(c => c.id === currentEditId);
-  if (idx === -1) return;
+async function saveUpdate() {
+  const saveBtn = document.querySelector('#admin-modal .btn-primary');
+  saveBtn.disabled = true;
+  saveBtn.textContent = '⏳ กำลังบันทึก...';
+
+  const claim = adminCache.find(c => c.id === currentEditId);
+  if (!claim) return;
 
   const newStatus = document.getElementById('m-status').value;
-  if (!data[idx].history) data[idx].history = [];
-  if (!data[idx].history.includes(newStatus)) data[idx].history.push(newStatus);
+  const history = claim.history || [];
+  if (!history.includes(newStatus)) history.push(newStatus);
 
-  data[idx].status = newStatus;
-  data[idx].price = document.getElementById('m-price').value;
-  data[idx].techNote = document.getElementById('m-note').value;
-  saveData(data);
+  const updates = {
+    status:   newStatus,
+    price:    document.getElementById('m-price').value,
+    techNote: document.getElementById('m-note').value,
+    history:  history,
+  };
+
+  await updateData(currentEditId, updates);
+
+  // อัป cache ด้วย
+  const idx = adminCache.findIndex(c => c.id === currentEditId);
+  if (idx !== -1) Object.assign(adminCache[idx], updates);
 
   document.getElementById('admin-modal').classList.remove('open');
-  renderAdmin();
+  renderTable(adminCache);
 
-  // ── ส่ง Email แจ้งสถานะให้ลูกค้า ──
-  const updatedClaim = getData().find(c => c.id === currentEditId);
+  saveBtn.disabled = false;
+  saveBtn.textContent = '💾 บันทึกและแจ้งลูกค้า';
+
+  // ส่ง Email แจ้งสถานะ
+  const updatedClaim = adminCache.find(c => c.id === currentEditId);
   if (updatedClaim) {
     const cfg = loadEjsConfig();
     const s = STATUS[updatedClaim.status] || STATUS.new;
@@ -1266,8 +1356,6 @@ function saveUpdate() {
       phone:       updatedClaim.phone,
     });
     showToast(`✅ อัปเดต ${currentEditId} — ${isEjsReady() ? 'ส่ง Email แจ้งลูกค้าแล้ว' : 'Email ยังไม่ได้ตั้งค่า'}`);
-  } else {
-    showToast(`✅ อัปเดต ${currentEditId} เรียบร้อย`);
   }
 }
 
@@ -1276,7 +1364,9 @@ function closeModal(e) {
     document.getElementById('admin-modal').classList.remove('open');
 }
 
-// ── TOAST ─────────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════
+//  TOAST
+// ══════════════════════════════════════════════════════════════════
 function showToast(msg) {
   const t = document.getElementById('toast');
   t.textContent = msg;
@@ -1284,16 +1374,16 @@ function showToast(msg) {
   setTimeout(() => t.classList.remove('show'), 3000);
 }
 
-// ── PRINT ─────────────────────────────────────────────────────────────────
-function printTicket() {
-  window.print();
-}
+// ══════════════════════════════════════════════════════════════════
+//  PRINT
+// ══════════════════════════════════════════════════════════════════
+function printTicket() { window.print(); }
 
-// ── INIT ──────────────────────────────────────────────────────────────────
-seedDemo();
+// ══════════════════════════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════════════════════════
 initEjs();
 
-// Enter to check status
 document.getElementById('check-input').addEventListener('keydown', e => {
   if (e.key === 'Enter') checkStatus();
 });
