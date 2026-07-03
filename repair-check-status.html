@@ -388,23 +388,32 @@ const TL_STEPS = [
 ];
 
 // ── LOAD DATA ─────────────────────────────────────────────────────────────
-function loadData() {
-  try { return JSON.parse(localStorage.getItem('repair_claims_v1')) || []; }
-  catch(e) { return []; }
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbyrrGpCmuJgSOCFtz6imfQNTTMcG6m_v5sn-e_70eq0Ubs6NIIfl3607WKu3gZ6gUO5/exec';
+
+async function getOneData(id, phone) {
+  try {
+    let url = GAS_URL + '?action=getOne';
+    if (id)    url += '&id='    + encodeURIComponent(id);
+    if (phone) url += '&phone=' + encodeURIComponent(phone);
+    const res  = await fetch(url);
+    const json = await res.json();
+    return json.ok ? json.data : null;
+  } catch(e) { return null; }
 }
 
 // ── SEARCH ────────────────────────────────────────────────────────────────
-function doSearch() {
+async function doSearch() {
   const raw = document.getElementById('ticket-input').value.trim();
   if (!raw) { showToast('⚠️ กรุณากรอกเลข Ticket'); return; }
 
-  const data = loadData();
-  const claim = data.find(c =>
-    c.id.toUpperCase() === raw.toUpperCase() ||
-    c.phone === raw
-  );
-
   const area = document.getElementById('result-area');
+  area.innerHTML = '<div style="text-align:center;padding:32px;color:#64748b">⏳ กำลังค้นหา...</div>';
+
+  const isTicket = raw.toUpperCase().startsWith('TK-');
+  const claim = await getOneData(
+    isTicket ? raw.toUpperCase() : null,
+    isTicket ? null : raw
+  );
 
   if (!claim) {
     area.innerHTML = `
