@@ -1046,15 +1046,59 @@ function previewFiles(input) {
   });
 }
 
-async function uploadToImgBB(file) {
-  const formData = new FormData();
-  formData.append('image', file);
-  formData.append('key', IMGBB_KEY);
+// compress รูปก่อนอัปโหลด
+async function compressImage(file, maxWidth=1200, quality=0.75) {
+  return new Promise(resolve => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      let w = img.width, h = img.height;
+      if (w > maxWidth) { h = Math.round(h * maxWidth / w); w = maxWidth; }
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      canvas.toBlob(blob => {
+        URL.revokeObjectURL(url);
+        resolve(blob || file);
+      }, 'image/jpeg', quality);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+    img.src = url;
+  });
+}
+
+async function uploadToImgBB(file, index, total) {
+  // อัปเดต progress
+  const btn = document.querySelector('button[type="submit"]');
+  if (btn) btn.textContent = `⏳ อัปโหลดรูป ${index+1}/${total}...`;
+
   try {
+    // compress ก่อน
+    const compressed = await compressImage(file);
+
+    // แปลงเป็น base64
+    const base64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result.split(',')[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(compressed);
+    });
+
+    // ส่งแบบ base64 (เร็วและเสถียรกว่า FormData)
+    const formData = new FormData();
+    formData.append('image', base64);
+    formData.append('key', IMGBB_KEY);
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20000); // timeout 20 วินาที
+
     const res = await fetch('https://api.imgbb.com/1/upload', {
       method: 'POST',
       body: formData,
+      signal: controller.signal,
     });
+    clearTimeout(timeout);
+
     const json = await res.json();
     return json.success ? json.data.url : null;
   } catch(e) {
@@ -1067,8 +1111,13 @@ async function uploadAllImages() {
   const input = document.getElementById('c-files');
   const files = Array.from(input.files);
   if (files.length === 0) return [];
-  const urls = await Promise.all(files.map(f => uploadToImgBB(f)));
-  return urls.filter(Boolean);
+  // อัปโหลดทีละไฟล์ (ไม่ parallel) เพื่อไม่ให้ค้าง
+  const urls = [];
+  for (let i = 0; i < files.length; i++) {
+    const url = await uploadToImgBB(files[i], i, files.length);
+    if (url) urls.push(url);
+  }
+  return urls;
 }
 
 // ══════════════════════════════════════════════════════════════════
