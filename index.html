@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ระบบแจ้งและติดตามงานซ่อม</title>
+<title>ระบบซ่อม VTECCOMPUTER</title>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <style>
@@ -416,8 +416,8 @@ select.status-select {
   <div class="logo">
     <div class="logo-icon">🔧</div>
     <div>
-      <div class="logo-text">ระบบซ่อม</div>
-      <div class="logo-sub">REPAIR TRACKER</div>
+      <div class="logo-text">ระบบซ่อม VTECCOMPUTER</div>
+      <div class="logo-sub">VTECCOMPUTER SERVICE</div>
     </div>
   </div>
   <div class="nav-tabs">
@@ -658,7 +658,7 @@ select.status-select {
   <div class="card">
     <div class="card-title"><span>🎫</span> ค้นหาด้วยเลข Ticket</div>
     <div class="check-box">
-      <input type="text" id="check-input" placeholder="เช่น TK-001234" style="font-family:var(--mono);font-size:16px;letter-spacing:2px">
+      <input type="text" id="check-input" placeholder="เช่น 69-000001" style="font-family:var(--mono);font-size:16px;letter-spacing:2px">
       <button class="btn btn-primary" onclick="checkStatus()">ค้นหา</button>
     </div>
     <div class="input-hint" style="margin-top:8px">หรือค้นหาด้วยเบอร์โทรศัพท์ที่ลงทะเบียนไว้</div>
@@ -789,6 +789,13 @@ select.status-select {
       <div class="modal-row"><label>Email</label><span class="val" id="m-email">—</span></div>
       <div class="modal-row"><label>อุปกรณ์</label><span class="val" id="m-device">—</span></div>
       <div class="modal-row"><label>อาการ</label><span class="val" id="m-issue">—</span></div>
+      <div class="modal-row"><label>📝 หมายเหตุลูกค้า</label><span class="val" id="m-customer-note" style="color:var(--orange);white-space:pre-wrap">—</span></div>
+      <div class="modal-row"><label>⚡ ความเร่งด่วน</label><span class="val" id="m-priority">—</span></div>
+      <div class="modal-row"><label>📦 รับอุปกรณ์คืน</label><span class="val" id="m-pickup">—</span></div>
+      <div id="m-images-row" style="display:none;margin-bottom:10px">
+        <label style="font-size:13px;font-weight:600;color:var(--text2);display:block;margin-bottom:8px">🖼️ รูปภาพอุปกรณ์</label>
+        <div id="m-images" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+      </div>
       <div style="height:1px;background:var(--border);margin:14px 0"></div>
       <div class="form-group" style="margin-bottom:14px">
         <label>สถานะงาน</label>
@@ -814,6 +821,7 @@ select.status-select {
       <div class="email-box" id="email-preview">—</div>
       <div class="btn-group" style="margin-top:16px">
         <button class="btn btn-primary btn-full" onclick="saveUpdate()">💾 บันทึกและแจ้งลูกค้า</button>
+        <button class="btn btn-full" style="background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;margin-top:8px" onclick="confirmDelete(currentEditId)">🗑️ ลบงานนี้</button>
       </div>
     </div>
   </div>
@@ -1017,12 +1025,16 @@ function showPage(page) {
 async function genTicket() {
   const data = await loadData();
   const num = (data.length + 1).toString().padStart(6, '0');
-  return `TK-${num}`;
+  const now = new Date();
+  const yearTH = (now.getFullYear() + 543).toString().slice(-2);
+  return `${yearTH}-${num}`;
 }
 
 // ══════════════════════════════════════════════════════════════════
 //  FILE PREVIEW
 // ══════════════════════════════════════════════════════════════════
+const IMGBB_KEY = 'baccdfca537d19e8f3505668015c2d56';
+
 function previewFiles(input) {
   const preview = document.getElementById('file-preview');
   preview.innerHTML = '';
@@ -1034,6 +1046,31 @@ function previewFiles(input) {
   });
 }
 
+async function uploadToImgBB(file) {
+  const formData = new FormData();
+  formData.append('image', file);
+  formData.append('key', IMGBB_KEY);
+  try {
+    const res = await fetch('https://api.imgbb.com/1/upload', {
+      method: 'POST',
+      body: formData,
+    });
+    const json = await res.json();
+    return json.success ? json.data.url : null;
+  } catch(e) {
+    console.error('ImgBB upload error:', e);
+    return null;
+  }
+}
+
+async function uploadAllImages() {
+  const input = document.getElementById('c-files');
+  const files = Array.from(input.files);
+  if (files.length === 0) return [];
+  const urls = await Promise.all(files.map(f => uploadToImgBB(f)));
+  return urls.filter(Boolean);
+}
+
 // ══════════════════════════════════════════════════════════════════
 //  SUBMIT CLAIM
 // ══════════════════════════════════════════════════════════════════
@@ -1042,8 +1079,11 @@ document.getElementById('claim-form').addEventListener('submit', async function(
 
   const submitBtn = this.querySelector('button[type="submit"]');
   submitBtn.disabled = true;
-  submitBtn.textContent = '⏳ กำลังบันทึก...';
+  submitBtn.textContent = '⏳ กำลังอัปโหลดรูป...';
 
+  const imageUrls = await uploadAllImages();
+
+  submitBtn.textContent = '⏳ กำลังบันทึก...';
   const ticket = await genTicket();
   const now = new Date();
   const dateStr = now.toLocaleDateString('th-TH', { year:'numeric', month:'long', day:'numeric' });
@@ -1068,6 +1108,7 @@ document.getElementById('claim-form').addEventListener('submit', async function(
     price: '',
     techNote: '',
     history: ['new'],
+    images: JSON.stringify(imageUrls),
   };
 
   await saveData(claim);
@@ -1116,7 +1157,7 @@ async function checkStatus() {
   if (btn) { btn.disabled = true; btn.textContent = '⏳ กำลังค้นหา...'; }
 
   // ตรวจว่าเป็น Ticket ID หรือเบอร์โทร
-  const isTicket = input.startsWith('TK-');
+  const isTicket = /^\d{2}-/.test(input);
   const claim = await getOneData(
     isTicket ? input : null,
     isTicket ? null : document.getElementById('check-input').value.trim()
@@ -1258,6 +1299,7 @@ function renderTable(data) {
       <td style="font-family:var(--mono);font-size:13px;color:var(--green)">${c.price?'฿'+Number(c.price).toLocaleString():'-'}</td>
       <td>
         <button class="btn btn-secondary btn-sm" onclick="openModal('${c.id}')">✏️ จัดการ</button>
+        <button class="btn btn-sm" style="background:#fee2e2;color:#dc2626;border:1px solid #fca5a5" onclick="confirmDelete('${c.id}')">🗑️ ลบ</button>
       </td>
     </tr>
   `).join('');
@@ -1279,6 +1321,31 @@ function openModal(id) {
   document.getElementById('m-email').textContent = claim.email;
   document.getElementById('m-device').textContent = `${claim.type} — ${claim.brand}`;
   document.getElementById('m-issue').textContent = claim.issue;
+  document.getElementById('m-customer-note').textContent = claim.note || '-';
+  const priorityMap = { normal:'ปกติ (3-5 วันทำการ)', urgent:'⚡ เร่งด่วน (1-2 วันทำการ)', express:'🚀 Express (ภายในวันเดียวกัน)' };
+  document.getElementById('m-priority').textContent = priorityMap[claim.priority] || claim.priority || '-';
+  document.getElementById('m-pickup').textContent = claim.pickup || '-';
+
+  // แสดงรูปภาพ
+  const imgBox = document.getElementById('m-images');
+  imgBox.innerHTML = '';
+  let imgs = [];
+  try { imgs = JSON.parse(claim.images || '[]'); } catch(e) { imgs = []; }
+  if (imgs.length > 0) {
+    imgs.forEach(url => {
+      const a = document.createElement('a');
+      a.href = url; a.target = '_blank';
+      const img = document.createElement('img');
+      img.src = url;
+      img.style.cssText = 'width:80px;height:80px;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid var(--border)';
+      img.title = 'คลิกดูรูปขนาดเต็ม';
+      a.appendChild(img);
+      imgBox.appendChild(a);
+    });
+    document.getElementById('m-images-row').style.display = 'block';
+  } else {
+    document.getElementById('m-images-row').style.display = 'none';
+  }
   document.getElementById('m-status').value = claim.status;
   document.getElementById('m-price').value = claim.price || '';
   document.getElementById('m-note').value = claim.techNote || '';
@@ -1378,6 +1445,36 @@ function showToast(msg) {
 //  PRINT
 // ══════════════════════════════════════════════════════════════════
 function printTicket() { window.print(); }
+
+// ══════════════════════════════════════════════════════════════════
+//  DELETE
+// ══════════════════════════════════════════════════════════════════
+async function deleteData(ticketId) {
+  if (!GAS_URL) return false;
+  try {
+    const res = await fetch(GAS_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'delete', ticketId }),
+    });
+    const json = await res.json();
+    return json.ok;
+  } catch(e) { return false; }
+}
+
+async function confirmDelete(ticketId) {
+  if (!ticketId) return;
+  const ok = confirm(`⚠️ ยืนยันลบ Ticket: ${ticketId}\nการลบไม่สามารถย้อนกลับได้`);
+  if (!ok) return;
+  const success = await deleteData(ticketId);
+  if (success) {
+    adminCache = adminCache.filter(c => c.id !== ticketId);
+    document.getElementById('admin-modal').classList.remove('open');
+    renderTable(adminCache);
+    showToast(`🗑️ ลบ ${ticketId} แล้ว`);
+  } else {
+    showToast('❌ ลบไม่สำเร็จ กรุณาลองใหม่');
+  }
+}
 
 // ══════════════════════════════════════════════════════════════════
 //  INIT

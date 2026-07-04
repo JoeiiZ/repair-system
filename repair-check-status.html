@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>เช็คสถานะงานซ่อม</title>
+<title>VTECCOMPUTER SERVICE CHECK</title>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -317,8 +317,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 <!-- HEADER -->
 <div class="header">
   <div class="header-icon">🔍</div>
-  <div class="header-title">ติดตามสถานะงานซ่อม</div>
-  <div class="header-sub">กรอกเลข Ticket เพื่อตรวจสอบความคืบหน้า</div>
+  <div class="header-title">VTECCOMPUTER SERVICE CHECK</div>
+  <div class="header-sub">ติดตามสถานะงานซ่อม</div>
 </div>
 
 <!-- MAIN -->
@@ -330,7 +330,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     <div class="search-sub">ได้รับเลข Ticket ทาง Email หลังแจ้งซ่อมแล้วครับ</div>
     <div class="search-row">
       <input type="text" class="search-input" id="ticket-input"
-             placeholder="เช่น TK-000001"
+             placeholder="เช่น 69-000001"
              oninput="this.value=this.value.toUpperCase()"
              onkeydown="if(event.key==='Enter') doSearch()">
       <button class="btn-search" onclick="doSearch()">ค้นหา 🔍</button>
@@ -409,7 +409,7 @@ async function doSearch() {
   const area = document.getElementById('result-area');
   area.innerHTML = '<div style="text-align:center;padding:32px;color:#64748b">⏳ กำลังค้นหา...</div>';
 
-  const isTicket = raw.toUpperCase().startsWith('TK-');
+  const isTicket = /^\d{2}-/.test(raw);
   const claim = await getOneData(
     isTicket ? raw.toUpperCase() : null,
     isTicket ? null : raw
