@@ -105,16 +105,6 @@ textarea { resize:vertical; min-height:90px; }
 .input-hint { font-size:12px; color:var(--text3); }
 
 /* ── FILE UPLOAD ── */
-.file-drop {
-  border:2px dashed var(--border2); border-radius:8px;
-  padding:20px; text-align:center; cursor:pointer;
-  transition:all .15s; background:var(--surf2);
-}
-.file-drop:hover { border-color:var(--blue); background:var(--blue-l); }
-.file-drop-icon { font-size:28px; margin-bottom:6px; }
-.file-drop-text { font-size:13px; color:var(--text2); }
-.file-drop-sub { font-size:12px; color:var(--text3); margin-top:2px; }
-#file-preview { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
 .file-thumb {
   width:64px; height:64px; border-radius:6px; object-fit:cover;
   border:1.5px solid var(--border);
@@ -578,14 +568,10 @@ select.status-select {
           <textarea id="c-issue" placeholder="อธิบายอาการให้ละเอียดที่สุด เช่น เปิดไม่ติด, จอดำ, เสียงดัง, ช้ามาก..." required></textarea>
         </div>
         <div class="form-group full">
-          <label>รูปถ่ายอุปกรณ์ / หน้าจอแสดง Error</label>
-          <div class="file-drop" onclick="document.getElementById('c-files').click()">
-            <div class="file-drop-icon">📷</div>
-            <div class="file-drop-text">คลิกเพื่อแนบรูป</div>
-            <div class="file-drop-sub">JPG, PNG ขนาดไม่เกิน 5MB ต่อไฟล์</div>
+
           </div>
-          <input type="file" id="c-files" multiple accept="image/*" style="display:none" onchange="previewFiles(this)">
-          <div id="file-preview"></div>
+
+
         </div>
       </div>
     </div>
@@ -792,9 +778,6 @@ select.status-select {
       <div class="modal-row"><label>📝 หมายเหตุลูกค้า</label><span class="val" id="m-customer-note" style="color:var(--orange);white-space:pre-wrap">—</span></div>
       <div class="modal-row"><label>⚡ ความเร่งด่วน</label><span class="val" id="m-priority">—</span></div>
       <div class="modal-row"><label>📦 รับอุปกรณ์คืน</label><span class="val" id="m-pickup">—</span></div>
-      <div id="m-images-row" style="display:none;margin-bottom:10px">
-        <label style="font-size:13px;font-weight:600;color:var(--text2);display:block;margin-bottom:8px">🖼️ รูปภาพอุปกรณ์</label>
-        <div id="m-images" style="display:flex;flex-wrap:wrap;gap:8px"></div>
       </div>
       <div style="height:1px;background:var(--border);margin:14px 0"></div>
       <div class="form-group" style="margin-bottom:14px">
@@ -1033,93 +1016,6 @@ async function genTicket() {
 // ══════════════════════════════════════════════════════════════════
 //  FILE PREVIEW
 // ══════════════════════════════════════════════════════════════════
-const IMGBB_KEY = 'baccdfca537d19e8f3505668015c2d56';
-
-function previewFiles(input) {
-  const preview = document.getElementById('file-preview');
-  preview.innerHTML = '';
-  Array.from(input.files).forEach(file => {
-    const url = URL.createObjectURL(file);
-    const img = document.createElement('img');
-    img.src = url; img.className = 'file-thumb';
-    preview.appendChild(img);
-  });
-}
-
-// compress รูปก่อนอัปโหลด
-async function compressImage(file, maxWidth=1200, quality=0.75) {
-  return new Promise(resolve => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      let w = img.width, h = img.height;
-      if (w > maxWidth) { h = Math.round(h * maxWidth / w); w = maxWidth; }
-      canvas.width = w; canvas.height = h;
-      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-      canvas.toBlob(blob => {
-        URL.revokeObjectURL(url);
-        resolve(blob || file);
-      }, 'image/jpeg', quality);
-    };
-    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
-    img.src = url;
-  });
-}
-
-async function uploadToImgBB(file, index, total) {
-  // อัปเดต progress
-  const btn = document.querySelector('button[type="submit"]');
-  if (btn) btn.textContent = `⏳ อัปโหลดรูป ${index+1}/${total}...`;
-
-  try {
-    // compress ก่อน
-    const compressed = await compressImage(file);
-
-    // แปลงเป็น base64
-    const base64 = await new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result.split(',')[1]);
-      reader.onerror = reject;
-      reader.readAsDataURL(compressed);
-    });
-
-    // ส่งแบบ base64 (เร็วและเสถียรกว่า FormData)
-    const formData = new FormData();
-    formData.append('image', base64);
-    formData.append('key', IMGBB_KEY);
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 20000); // timeout 20 วินาที
-
-    const res = await fetch('https://api.imgbb.com/1/upload', {
-      method: 'POST',
-      body: formData,
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
-
-    const json = await res.json();
-    return json.success ? json.data.url : null;
-  } catch(e) {
-    console.error('ImgBB upload error:', e);
-    return null;
-  }
-}
-
-async function uploadAllImages() {
-  const input = document.getElementById('c-files');
-  const files = Array.from(input.files);
-  if (files.length === 0) return [];
-  // อัปโหลดทีละไฟล์ (ไม่ parallel) เพื่อไม่ให้ค้าง
-  const urls = [];
-  for (let i = 0; i < files.length; i++) {
-    const url = await uploadToImgBB(files[i], i, files.length);
-    if (url) urls.push(url);
-  }
-  return urls;
-}
-
 // ══════════════════════════════════════════════════════════════════
 //  SUBMIT CLAIM
 // ══════════════════════════════════════════════════════════════════
@@ -1128,11 +1024,9 @@ document.getElementById('claim-form').addEventListener('submit', async function(
 
   const submitBtn = this.querySelector('button[type="submit"]');
   submitBtn.disabled = true;
-  submitBtn.textContent = '⏳ กำลังอัปโหลดรูป...';
-
-  const imageUrls = await uploadAllImages();
-
   submitBtn.textContent = '⏳ กำลังบันทึก...';
+
+  const imageUrls = [];
   const ticket = await genTicket();
   const now = new Date();
   const dateStr = now.toLocaleDateString('th-TH', { year:'numeric', month:'long', day:'numeric' });
@@ -1191,7 +1085,7 @@ document.getElementById('claim-form').addEventListener('submit', async function(
 
 function resetForm() {
   document.getElementById('claim-form').reset();
-  document.getElementById('file-preview').innerHTML = '';
+
   document.getElementById('ticket-result').classList.remove('show');
 }
 
@@ -1375,26 +1269,6 @@ function openModal(id) {
   document.getElementById('m-priority').textContent = priorityMap[claim.priority] || claim.priority || '-';
   document.getElementById('m-pickup').textContent = claim.pickup || '-';
 
-  // แสดงรูปภาพ
-  const imgBox = document.getElementById('m-images');
-  imgBox.innerHTML = '';
-  let imgs = [];
-  try { imgs = JSON.parse(claim.images || '[]'); } catch(e) { imgs = []; }
-  if (imgs.length > 0) {
-    imgs.forEach(url => {
-      const a = document.createElement('a');
-      a.href = url; a.target = '_blank';
-      const img = document.createElement('img');
-      img.src = url;
-      img.style.cssText = 'width:80px;height:80px;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid var(--border)';
-      img.title = 'คลิกดูรูปขนาดเต็ม';
-      a.appendChild(img);
-      imgBox.appendChild(a);
-    });
-    document.getElementById('m-images-row').style.display = 'block';
-  } else {
-    document.getElementById('m-images-row').style.display = 'none';
-  }
   document.getElementById('m-status').value = claim.status;
   document.getElementById('m-price').value = claim.price || '';
   document.getElementById('m-note').value = claim.techNote || '';
